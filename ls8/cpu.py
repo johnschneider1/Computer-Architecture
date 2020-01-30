@@ -1,6 +1,12 @@
 """CPU functionality."""
 
-import sys
+
+ldi = 0b10000010
+prn = 0b01000111
+hlt = 0b00000001
+mul = 0b10100010
+push = 0b01000101
+pop = 0b01000110
 
 
 class CPU:
@@ -8,10 +14,23 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        self.pc = 0  # program counter
-        self.ram = [0] * 256  # set ram to a list, future storage
-        self.ir = 0  # initial reader
-        self.reg = [0] * 8  # process register
+        self.ram = [0] * 256
+
+        self.reg = [0] * 8
+        self.pc = 0
+
+        self.sp = 7
+        self.running = False
+
+        self.reg[self.sp] = 0xF4
+
+        self.branchtable = {}
+        self.branchtable[ldi] = self.ldi
+        self.branchtable[prn] = self.prn
+        self.branchtable[hlt] = self.hlt
+        self.branchtable[mul] = self.mul
+        self.branchtable[push] = self.push
+        self.branchtable[pop] = self.pop
 
     def ram_read(self, mar):
         return self.ram[mar]
@@ -19,33 +38,76 @@ class CPU:
     def ram_write(self, mar, mdr):
         self.ram[mar] = mdr
 
-    def load(self):
+    def hlt(self):
+        self.running = False
+
+    def ldi(self):
+        print("ldi")
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+
+        self.reg[operand_a] = operand_b
+        self.pc += 3
+
+    def prn(self):
+        print("prn")
+        operand_a = self.ram_read(self.pc + 1)
+
+        print(self.reg[operand_a])
+        self.pc += 2
+
+    def mul(self):
+        print("mul")
+        operand_a = self.ram_read(self.pc + 1)
+        operand_b = self.ram_read(self.pc + 2)
+
+        self.reg[operand_a] * self.reg[operand_b]
+        self.pc += 3
+
+    def push(self):
+        print("push")
+
+        reg = self.ram[self.pc + 1]
+        val = self.reg[reg]
+        self.reg[self.sp] -= 1
+
+        self.ram[self.reg[self.sp]] = val
+        self.pc += 2
+
+    def pop(self):
+        print("pop")
+        reg = self.ram[self.pc + 1]
+        val = self.ram[self.reg[self.sp]]
+        self.reg[reg] = val
+        self.reg[self.sp] += 1
+        self.pc += 2
+
+    def load(self, filename):
         """Load a program into memory."""
+        try:
+            address = 0
 
-        address = 0
+            with open(filename) as f:
+                for line in f:
 
-        # For now, we've just hardcoded a program:
+                    comment_split = line.split("#")
+                    num = comment_split[0].strip()
+                    if num == "":
+                        continue
+                    value = int(num, 2)
 
-        program = [
-            # From print8.ls8
-            0b10000010,  # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111,  # PRN R0
-            0b00000000,
-            0b00000001,  # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+                    self.ram[address] = value
+                    address += 1
+        except FileNotFoundError:
+            print(f"{sys.argv[0]}: {filename} not found")
+            sys.exit(2)
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        # elif op == "SUB": etc
+
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -57,8 +119,6 @@ class CPU:
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
             self.pc,
-            # self.fl,
-            # self.ie,
             self.ram_read(self.pc),
             self.ram_read(self.pc + 1),
             self.ram_read(self.pc + 2)
@@ -71,29 +131,11 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        # commands for run()
-        ldi = 0b10000010
-        prn = 0b01000111
-        hlt = 0b00000001
 
-        running = True
+        self.running = True
 
-        while running:
-            self.trace()
+        while self.running:
 
-            ir = self.ram_read(self.pc)
-
-            operand_a = self.ram_read(self.pc + 1)
-            operand_b = self.ram_read(self.pc + 2)
-
-            if ir == ldi:
-                self.reg[operand_a] = operand_b
-                self.pc += 3
-            elif ir == prn:
-                print(f'{self.reg[operand_a]}')
-                self.pc += 2
-            elif ir == hlt:
-                running = False  # stop running
-            else:
-                print(f'Unknown Commands: {ir}')
-                sys.exit(1)
+            ir = self.ram[self.pc]
+            print("ir", ir)
+            self.branchtable[ir]()
