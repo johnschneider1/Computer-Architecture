@@ -5,12 +5,12 @@
 import sys
 from cpu import *
 
-if len(sys.argv) != 2:
-    print("Usage: file.py filename", file=sys.stderr)
-    sys.exit(1)
+# if len(sys.argv) != 2:
+#     print("Usage: file.py filename", file=sys.stderr)
+#     sys.exit(1)
 
-cpu = CPU()
+cpu = CPU(sys.argv[1])
 
 
-cpu.load(sys.argv[1])
+cpu.load()
 cpu.run()
